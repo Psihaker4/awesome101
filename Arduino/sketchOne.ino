@@ -1,17 +1,22 @@
 #include <CurieBLE.h>
 
 BLEPeripheral blePeripheral;
-BLEService bleService("FFFF");
-BLEIntCharacteristic bleIntChar("AAAA", BLERead | BLEWrite);
+BLEService bleService("aaaa");
+BLEIntCharacteristic bleX("aaa0", BLERead | BLEWrite);
+BLEIntCharacteristic bleY("aaa1", BLERead | BLEWrite);
 
 int leftLed = 9;
 int rightLed = 10;
 int bottomLed = 11;
 int topLed = 12;
+
 int nowLed = 13;
 
 bool hasCommand = false;
+bool hasCommandC[] = {false, false};
+
 int delayTime = 1000;
+String dir = "";
 
 void setup() {
   Serial.begin(9600);
@@ -26,13 +31,17 @@ void setup() {
   blePeripheral.setAdvertisedServiceUuid(bleService.uuid());
 
   blePeripheral.addAttribute(bleService);
-  blePeripheral.addAttribute(bleIntChar);
+  blePeripheral.addAttribute(bleX);
+  blePeripheral.addAttribute(bleY);
 
   blePeripheral.setEventHandler(BLEConnected, blePeripheralConnect);
   blePeripheral.setEventHandler(BLEDisconnected, blePeripheralDisonnect);
 
-  bleIntChar.setValue(111);
-  bleIntChar.setEventHandler(BLEWritten, bleIntCharWritten);
+  bleX.setValue(0);
+  bleX.setEventHandler(BLEWritten, bleXWritten);
+
+  bleY.setValue(0);
+  bleY.setEventHandler(BLEWritten, bleYWritten);
 
   blePeripheral.begin();
 
@@ -77,36 +86,31 @@ void blePeripheralDisonnect(BLECentral& central) {
   delayTime = 1000;
 }
 
-void bleIntCharWritten(BLECentral& central, BLECharacteristic& characteristic) {
+void bleXWritten(BLECentral& central, BLECharacteristic& characteristic) {
+  executeCommand(bleX.value(),leftLed, rightLed, 0);
+}
 
-  String dir = "";
+void bleYWritten(BLECentral& central, BLECharacteristic& characteristic) {
+  executeCommand(bleY.value(),topLed, bottomLed, 1);
+}
 
-  hasCommand = true;
+void executeCommand(int command, int led1, int led2, int i) {
+  hasCommandC[i] = true;
 
-  digitalWrite(nowLed, LOW);
-  switch (bleIntChar.value()) {
-    case 121 :
-      nowLed = leftLed;
-      dir = "left";
-      break;
-    case 101 :
-      nowLed = rightLed;
-      dir = "right";
-      break;
-    case 211 :
-      nowLed = topLed;
-      dir = "top";
-      break;
-    case 11 :
-      nowLed = bottomLed;
-      dir = "bottom";
-      break;
-    default :
-      nowLed = 13;
-      dir = "nothing";
-      hasCommand = false;
+  digitalWrite(led1, LOW);
+  digitalWrite(led2, LOW);
+
+  if (command == 1) {
+    digitalWrite(led1, HIGH);
+  } else if (command == 2) {
+    digitalWrite(led2, HIGH);
+  } else {
+    hasCommandC[i] = false;
   }
-  digitalWrite(nowLed, HIGH);
 
-  Serial.println("Command recieved: " + dir);
+  if (hasCommandC[0] || hasCommandC[1]) {
+    hasCommand = true;
+  } else {
+    hasCommand = false;
+  }
 }
