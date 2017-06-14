@@ -1,86 +1,112 @@
 #include <CurieBLE.h>
 
-BLEPeripheral peripheral;
-BLEService service("FFFF");
-BLEIntCharacteristic command("AAAA", BLERead | BLEWrite);
+BLEPeripheral blePeripheral;
+BLEService bleService("FFFF");
+BLEIntCharacteristic bleIntChar("AAAA", BLERead | BLEWrite);
 
-int leftLed = 8;
+int leftLed = 9;
 int rightLed = 10;
-int topLed = 12;
 int bottomLed = 11;
-
+int topLed = 12;
 int nowLed = 13;
-int i = 0;
+
+bool hasCommand = false;
+int delayTime = 1000;
 
 void setup() {
   Serial.begin(9600);
 
-  pinMode(leftLed, OUTPUT);
-  pinMode(rightLed, OUTPUT);
-  pinMode(topLed, OUTPUT);
-  pinMode(bottomLed, OUTPUT);
+  for (int i = 9; i < 14; i++) {
+    pinMode(i, OUTPUT);
+  }
 
-  peripheral.setLocalName("Awesome101");
-  peripheral.setAdvertisedServiceUuid(service.uuid());
-  peripheral.addAttribute(service);
-  peripheral.addAttribute(command);
+  blePeripheral.setLocalName("Awesome101");
+  blePeripheral.setDeviceName("Awesome101");
 
-  command.setValue(111);
+  blePeripheral.setAdvertisedServiceUuid(bleService.uuid());
 
-  command.setEventHandler(BLEWritten, commandWrite);
+  blePeripheral.addAttribute(bleService);
+  blePeripheral.addAttribute(bleIntChar);
 
-  peripheral.begin();
+  blePeripheral.setEventHandler(BLEConnected, blePeripheralConnect);
+  blePeripheral.setEventHandler(BLEDisconnected, blePeripheralDisonnect);
 
-  Serial.println("Bluetooth device active, waiting for connections...");
+  bleIntChar.setValue(111);
+  bleIntChar.setEventHandler(BLEWritten, bleIntCharWritten);
+
+  blePeripheral.begin();
+
+  for (int i = 9; i < 13; i++) {
+    digitalWrite(i, HIGH);
+    delay(100);
+  }
+
+  delay(500);
+
+  for (int i = 12; i > 8; i--) {
+    digitalWrite(i, LOW);
+    delay(100);
+  }
 
 }
 
 void loop() {
-
-  BLECentral peripheralCentral = peripheral.central();
-
-  if (peripheralCentral) {
+  if (!hasCommand) {
     digitalWrite(13, HIGH);
-    Serial.print("Connected to central: ");
-    Serial.println(peripheralCentral.address());
-    Serial.println(command.uuid());
-    Serial.println(service.uuid());
-    while (peripheralCentral.connected()) {
-      if (command.written()) {
-        Serial.println(command.value());
-      }
-    }
+    delay(100);
     digitalWrite(13, LOW);
-    digitalWrite(leftLed, LOW);
-    digitalWrite(rightLed, LOW);
-    digitalWrite(topLed, LOW);
-    digitalWrite(bottomLed, LOW);
+    delay(delayTime);
   }
 }
 
-void commandWrite(BLECentral& central, BLECharacteristic& characteristic) {
+void blePeripheralConnect(BLECentral& central) {
+  Serial.print("Connected to central: ");
+  Serial.println(central.address());
+  digitalWrite(13, HIGH);
+  delayTime = 100;
+}
 
-  Serial.println("Characteristic event, written: " + command.value());
+void blePeripheralDisonnect(BLECentral& central) {
+  Serial.print("Disconnected from central: ");
+  Serial.println(central.address());
+  for (int i = 9; i < 14; i++) {
+    digitalWrite(i, LOW);
+  }
+
+  hasCommand = false;
+  delayTime = 1000;
+}
+
+void bleIntCharWritten(BLECentral& central, BLECharacteristic& characteristic) {
+
+  String dir = "";
+
+  hasCommand = true;
 
   digitalWrite(nowLed, LOW);
-  switch (command.value()) {
+  switch (bleIntChar.value()) {
     case 121 :
       nowLed = leftLed;
+      dir = "left";
       break;
     case 101 :
       nowLed = rightLed;
+      dir = "right";
       break;
     case 211 :
       nowLed = topLed;
+      dir = "top";
       break;
     case 11 :
       nowLed = bottomLed;
+      dir = "bottom";
       break;
     default :
       nowLed = 13;
+      dir = "nothing";
+      hasCommand = false;
   }
   digitalWrite(nowLed, HIGH);
 
+  Serial.println("Command recieved: " + dir);
 }
-
-
